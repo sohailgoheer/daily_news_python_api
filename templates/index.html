@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shapefile Upload Viewer</title>
+
+    <!-- MapLibre CSS from CDN -->
+    <link
+      href="https://unpkg.com/maplibre-gl@5.3.0/dist/maplibre-gl.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <main class="page">
+      <h1>Upload a zipped ESRI Shapefile</h1>
+      <p class="hint">Choose a .zip that includes .shp, .shx, and .dbf files.</p>
+
+      <div class="controls">
+        <input id="shapefileInput" type="file" accept=".zip" />
+        <button id="uploadButton">Upload</button>
+      </div>
+
+      <p id="status" class="status"></p>
+      <div id="map"></div>
+    </main>
+
+    <!-- MapLibre JS from CDN -->
+    <script src="https://unpkg.com/maplibre-gl@5.3.0/dist/maplibre-gl.js"></script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>
