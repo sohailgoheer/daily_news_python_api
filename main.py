@@ -19,8 +19,11 @@ SUPPORTED_GEOMETRIES = {
 }
 
 
-def _safe_extract_zip(zip_path: Path, extract_to: Path) -> None:
-    """Extract a zip file while blocking path traversal attacks."""
+def _safe_extract_zip(zip_path: Path, extract_to: Path) -> list[Path]:
+    """Extract a zip file while blocking path traversal attacks.
+
+    Returns a list of extracted file paths to help with debugging.
+    """
     with zipfile.ZipFile(zip_path, "r") as zf:
         for member in zf.infolist():
             member_path = extract_to / member.filename
@@ -29,22 +32,50 @@ def _safe_extract_zip(zip_path: Path, extract_to: Path) -> None:
                 raise ValueError("Zip contains unsafe file paths.")
         zf.extractall(extract_to)
 
+    extracted_files = [p for p in extract_to.rglob("*") if p.is_file()]
+    # Log extracted files for easier debugging in development.
+    for file_path in extracted_files:
+        app.logger.info("Extracted file: %s", file_path.relative_to(extract_to))
+
+    return extracted_files
+
 
 def _find_shapefile(extract_to: Path) -> Path:
-    """Find a .shp file and verify the matching .shx and .dbf exist."""
-    shp_files = sorted(extract_to.rglob("*.shp"))
-    if not shp_files:
-        raise FileNotFoundError("No .shp file found in the uploaded zip.")
+    """Find a shapefile and verify matching .shp/.shx/.dbf parts.
 
-    for shp_file in shp_files:
-        stem = shp_file.with_suffix("")
-        shx_file = stem.with_suffix(".shx")
-        dbf_file = stem.with_suffix(".dbf")
-        if shx_file.exists() and dbf_file.exists():
+    This search is recursive and case-insensitive.
+    """
+    all_files = [p for p in extract_to.rglob("*") if p.is_file()]
+
+    # Group discovered files by base name (without extension), case-insensitive.
+    parts_by_base: dict[str, set[str]] = {}
+    shp_path_by_base: dict[str, Path] = {}
+
+    for file_path in all_files:
+        suffix = file_path.suffix.lower()
+        if suffix not in {".shp", ".shx", ".dbf"}:
+            continue
+
+        # Use lower-case key so roads.SHP and roads.shp are treated the same.
+        base_key = str(file_path.with_suffix("")).lower()
+        parts_by_base.setdefault(base_key, set()).add(suffix)
+
+        if suffix == ".shp":
+            shp_path_by_base[base_key] = file_path
+
+    if not shp_path_by_base:
+        raise FileNotFoundError(
+            "No .shp file found in the uploaded zip (searched recursively, case-insensitive)."
+        )
+
+    for base_key, shp_file in shp_path_by_base.items():
+        parts = parts_by_base.get(base_key, set())
+        if {".shp", ".shx", ".dbf"}.issubset(parts):
             return shp_file
 
     raise FileNotFoundError(
-        "Missing required shapefile parts. Make sure .shp, .shx, and .dbf are included."
+        "Missing required shapefile parts for the same base filename. "
+        "Make sure .shp, .shx, and .dbf all match."
     )
 
 
